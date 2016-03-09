@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "#\n# this file has two test of knn3, first on using iris , second one using mnistAll.mat from kevin murphy dataset\n\n\n\n#https://www.datacamp.com/community/tutorials/machine-learning-in-r\nrm(list=ls())\n\n\nlibrary(ggvis)\nlibrary(caret)\nlibrary(gmodels)\nlibrary(class)\nlibrary(reshape2)\nlibrary(ipred)\nset.seed(1234)\n\n\n\n\nnormalize <- function(x) {\n  num <- x - min(x)\n  denom <- max(x) - min(x)\n  return (num/denom)\n}\n\niris %>% ggvis(~Sepal.Length, ~Sepal.Width, fill = ~Species) %>% layer_points()\n\niris %>% ggvis(~Petal.Length, ~Petal.Width, fill = ~Species) %>% layer_points()\n\ntable(iris$Species)\nround(prop.table(table(iris$Species)) * 100, digits = 1)\nsummary(iris)\nsummary(iris[c(\"Petal.Width\", \"Sepal.Width\")])\n\n\nind <- sample(2, nrow(iris), replace=TRUE, prob=c(0.67, 0.33))\niris.training <- iris[ind==1, 1:4]\niris.test <- iris[ind==2, 1:4]\niris.test.check <- iris[ind==2,]\n\niris_norm <- as.data.frame(lapply(iris.training, normalize))\nsummary(iris_norm)\n\n\niris.trainLabels <- iris[ind==1, 5]\niris.testLabels <- iris[ind==2, 5]\n\niris_pred <- knn(train = iris_norm, test = iris.test, cl = iris.trainLabels, k=3)\nattributes(.Last.value)\n\nCrossTable(x = iris.testLabels, y = iris_pred, prop.chisq=FALSE)\n\n\nirisKnnFit <- knn3(x=iris.training,y = iris.trainLabels, k = 5)\nclass(irisKnnFit)\nsaveRDS(irisKnnFit,file = \"irisKnnFit.rds\")\nprediction = predict.knn3(irisKnnFit, newdata = iris.test[10:20,],type = \"class\")\nprediction\niris.test.check[10:20,]\n\n\n######################################################## now for something completely different i.e convert octave to R\n#now we try to convert kevin murphy's matlab code\nrm(list=ls())\n\n\nlibrary(ggvis)\nlibrary(caret)\nlibrary(gmodels)\nlibrary(class)\nlibrary(reshape2)\nset.seed(1234)\n\nlibrary(R.matlab)\nlibrary(matlab)\n\nrotate <- function(x) t(apply(x, 2, rev))\n\nmnist.data = readMat(\"data/mnistAll/mnistAll.mat\")\nmnist.data = mnist.data[[1]]\nmnist.data %>% str\nmnist.data['train.images']\n\nx = matrix(mnist.data['train.images',,],28,28)\n#x %>% head\n#x == train.images\n\n# there could be better way to do this, \n# but this works thanks to : https://www.kaggle.com/c/seizure-prediction/forums/t/10453/load-the-mat-file-in-r\n# extract training images\nmnist.data %>% str\nmatTrain = do.call(rbind, mnist.data['train.images',,])\nntrain = length(matTrain)/28/28\ntrain.images = matlab::reshape(matTrain,28*28,ntrain)\ntrain.labels = do.call(rbind, (mnist.data['train.labels',,]))\n\nx = matrix(train.images[,12],28,28,byrow = FALSE)\nimagesc(x)\n\n# extract test images\nmatTest = do.call(rbind, (mnist.data['test.images',,]))\nntest = length(matTest)/28/28\ntest.images = matlab::reshape(matTest,28*28,ntest)\ntest.labels = do.call(rbind, (mnist.data['test.labels',,]))\n\nx = matrix(test.images[,12],28,28,byrow = FALSE)\nimagesc(x)\n\nx = matrix(train.images[,sample(1:200,1)],28,28,byrow = FALSE)\nimagesc(x)\n\ntest.labels %>% head\n\nnrow(t(train.images)) \nnames(train.labels) = c(\"Name\")\n\ny = as.vector(train.labels) %>% factor\n\nmnistKnnFit <- knn3(x=t(train.images),y = y, k = 5)\nclass(mnistKnnFit)\nsaveRDS(mnistKnnFit,file = \"mnistKnnFit.rds\")\nprediction = predict.knn3(mnistKnnFit, newdata = t(test.images[,10:20]),type = \"class\")\nprediction\n###### check image it should match prediction\nx = matrix(test.images[,12],28,28,byrow = FALSE)\nimagesc(x)\n\n\n\n\n",
+    "created" : 1457445172792.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2739602844",
+    "id" : "A90F6179",
+    "lastKnownWriteTime" : 1457531706,
+    "last_content_update" : 1457531706921,
+    "path" : "C:/sources/Quantnet/MyMLStat/KNN.R",
+    "project_path" : "KNN.R",
+    "properties" : {
+        "source_window_id" : "wngondnubr159",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

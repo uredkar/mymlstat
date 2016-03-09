@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "loadMat = function(fileName)\n{\n  library(R.matlab)\n  rawData = readMat(fileName)\n  data = rawData[[1]]\n  matrix = do.call(rbind, data['data',,])\n  totalSec = unlist(data['data.length.sec',,])\n  sequence = unlist(data['sequence',,])\n  measures = as.data.frame(t(matrix))\n  measures\n}",
+    "created" : 1457453225272.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2963768702",
+    "id" : "DF85008",
+    "lastKnownWriteTime" : 1457453224,
+    "last_content_update" : 1457453224,
+    "path" : "C:/Users/uredkar/Downloads/simpleLoadMat.R",
+    "project_path" : null,
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
