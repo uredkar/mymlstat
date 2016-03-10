@@ -94,9 +94,13 @@ colvec <- apply(cc(Zsc),1,rgbvec2col)
 
 library(rgl)
 open3d()
-
 surface3d(x,y,p * 20,col=colvec) 
 bbox3d(color=c("white","black"))
 
+#library(plot3D)
 
+#persp3D(x = x, y= y,z = p, zlim = c(0,1))
+
+#perspbox(z = volcano, bty = "g",
+#         d = 2, main = "bty = 'g'")
 

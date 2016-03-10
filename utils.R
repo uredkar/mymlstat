@@ -2,6 +2,8 @@ library(dplyr)
 # convert from utils.py, kevin murphy book
 set.seed(0)
 
+rotate <- function(x) t(apply(x, 2, rev))
+
 poly_data_make = function(sampling="sparse", deg=3, n=21)
 {
   if (sampling == "irregular")
