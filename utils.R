@@ -101,7 +101,7 @@ poly_data_make = function(sampling="sparse", deg=3, n=21)
   else if (sampling == "thibaux")
   {
     xtrain = seq(from=0, to=20, length.out =  n)
-    xtest = seq(from = 0,to= 20.1, by = 0.1)
+    xtest = seq(from = 0,to=20, by = 0.1)
     sigma2 = 4
     w = c(-1.5, 1/9.)
     fun = function(x)  w[1]*x + w[2]*(x^2)
@@ -126,11 +126,12 @@ poly_data_make = function(sampling="sparse", deg=3, n=21)
   }
   
   ytrain = fun(xtrain) + rnorm(mean = 0,sd = 1, n = length(xtrain)) * sqrt(sigma2)
-  
+  #ytest  = fun(xtest) + rnorm(mean = 0,sd = 1, n = length(xtest)) * sqrt(sigma2)
   ytestNoisefree = fun(xtest)
   ytestNoisy = ytestNoisefree + rnorm(mean = 0,sd = 1,n = length(xtest)) * sqrt(sigma2)
   
-  list(xtrain = xtrain, ytrain = ytrain, xtest = xtest,ytestNoisefree = ytestNoisefree, 
+  list(xtrain = xtrain, ytrain = ytrain, xtest = xtest,
+       ytestNoisefree = ytestNoisefree, 
        ytestNoisy = ytestNoisy, sigma2 = sigma2)
   
   

@@ -1,5 +1,6 @@
 rm(list=ls())
 library(matlab)
+library(R.matlab)
 library(VGAM)
 source("utils.r")
 source("prob/prob.r")
