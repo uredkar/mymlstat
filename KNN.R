@@ -104,7 +104,7 @@ ntest = length(matTest)/28/28
 test.images = matlab::reshape(matTest,28*28,ntest)
 test.labels = do.call(rbind, (mnist.data['test.labels',,]))
 
-x = matrix(test.images[,12],28,28,byrow = FALSE)
+x = matrix(test.images[,13],28,28,byrow = FALSE)
 imagesc(x)
 
 x = matrix(train.images[,sample(1:200,1)],28,28,byrow = FALSE)

@@ -1,4 +1,10 @@
 rm(list = ls())
+
+op <- par(mfrow = c(1, 2), # 2 x 2 pictures on one plot
+          pty = "s")       # square plotting region,
+                           # independent of device size
+
+oldpar = par(op)
 #%% Example of parameter updating in a Beta-Binomial model
 #%
 #%%
@@ -50,20 +56,34 @@ for (i in 1:numel(data))
   ylim = max(unlist(list(max(Pprior),max(Plik),max(Ppost))))
   
   plot(x, Pprior,type="l", col="red",ylim=c(0,ylim),lwd=2,lty=1,pch=21, ann=FALSE) 
-  title(main="Bayesian Beta")
+  title(main="Bayesian Beta(1,1) = uniform, binomial likelihood")
   title(xlab="x")
   title(ylab="Distribution")  
   
   
   
-  lines(x = x, y = Plik, col="blue", type = "l", lty=2,pch=22)    
-  lines(x, Ppost, col="green", type = "l", lty=3, pch=23)  
-  
-  legend(0, ylim, c(name1,name2,name3), cex=0.8, 
-         col=c("red","blue","green"), pch=21:23, lty=1:3);
+  lines(x = x, y = Plik, col="blue", type = "o", lty=2,pch=22)    
+  lines(x, Ppost, col="green", type = "o", lty=3, pch=23)  
+ 
+  posterior <- MCbinomialbeta(nsucc,N,mc=5000)
+  lines(density(posterior), col="black", type = "l",lty=5,pch=24)
+  name4 = "mcmc"
+  legend(0, ylim, c(name1,name2,name3,name4), cex=0.8, 
+         col=c("red","blue","green","black"), pch=c(0,22,23,0), lty=1:4);
 
 }
 
+par(oldpar)
+## from help
+library(MCMCpack)
+## Not run:
 
-
+posterior <- MCbinomialbeta(2,2,mc=5000)
+summary(posterior)
+plot(posterior)
+grid <- seq(0,1,0.01)
+plot(grid, dbeta(grid, 1, 1, log = TRUE), type="l", col="red", lwd=3, ylim=c(0,3.6),
+     xlab="pi", ylab="density")
+lines(density(posterior), col="blue", lwd=3)
+legend(.75, 3.6, c("prior", "posterior"), lwd=3, col=c("red", "blue"))
 
