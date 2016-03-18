@@ -32,6 +32,7 @@ points(X[ , 1], X[ , 2], pch = '.')
 nrep <- 10 
 index <- sample(1:N, nrep) # take nrep samples between 1 to N
 
+# estimate by simulation random points from sample statement above
 for(ii in 1:nrep) {
   start <- X[index[ii], ] # Take the first point in the sample
   out <- ms(X, init = start, H = 0.1 * sigma, store = TRUE) # each run will result in different lines
