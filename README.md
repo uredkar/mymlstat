@@ -3,12 +3,12 @@ Machine Learning^2
 - intent of this code is to learn statistical learning and/or machine learning 
 - some of the code is translation of matlab code to r by me
 - future will include other fun stuff 
-- this work can and will be stop without any notice
+- this work can and will be stopped without any notice
 
 
 
 The MIT License (MIT)
-Copyright (c) <2016> <unmesh c redkar>
+Copyright (c) <2016> <Unmesh C Redkar>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
