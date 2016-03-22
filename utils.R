@@ -11,6 +11,12 @@ rotate <- function(x) {
   t(apply(x, 2, rev))
 } 
 
+sampleDiscrete = function(prob,r,c,x = 1:2)
+{
+  #replicate(10,sample(1:2,size=2,prob = c(0.8,0.2)))
+  replicate(c,sample(x,size = r,prob = prob))
+}
+
 ########### get sq of distance from kevin murphy code
 sqDistance = function(p,q)
 {

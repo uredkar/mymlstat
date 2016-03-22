@@ -30,16 +30,16 @@ sigma = cov(wtht.data$height,wtht.data$weight)
 
 df_ellipse <- data.frame()
 
-for(g in unique(wtht.data$ind))
+for(cluster in unique(wtht.data$ind))
 {
   df_ellipse <- rbind(df_ellipse,
                       cbind(as.data.frame(
-                        with(wtht.data[wtht.data$ind==g,],
+                        with(wtht.data[wtht.data$ind==cluster,],
                              ellipse(cor(height, weight),
                                      level=0.7,
                                      scale=c(sd(height),sd(weight)),
                                      centre=c(mean(height),mean(weight))))),
-                        ind=g))
+                        ind=cluster))
 }
 
 
