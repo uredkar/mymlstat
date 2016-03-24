@@ -6,7 +6,14 @@ library(MASS)
 set.seed(0)
 epsilon = 1e-4
 maxIter = 1000
+
+
+
+
+
 ########### rotate a 2d matrix
+
+
 rotate <- function(x) {
   t(apply(x, 2, rev))
 } 
