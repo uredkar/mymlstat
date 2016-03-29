@@ -75,7 +75,7 @@ xx$persp(col = "lightblue", theta = 130, phi = 30, axes = TRUE, nticks = 5)
 
 
 
-steepestDescent = function(f, x0, stepSize = 0.03, ftol = 1e-3, outputFn = NULL, maxIter = 500, exactLineSearch = FALSE) {
+steepestDescent = function(f, x0, stepSize = 0.3, ftol = 1e-3, outputFn = NULL, maxIter = 500, exactLineSearch = FALSE) {
     #% f is the function of the form[fx, gx] = f(x) where gx is a column vector
     #% outputfn has the form stop = outputfn(x, optimValues, state)
 

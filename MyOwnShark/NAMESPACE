@@ -1,0 +1,3 @@
+useDynLib(MyOwnShark)
+importFrom(Rcpp, evalCpp)
+exportPattern("^[[:alpha:]]+")
