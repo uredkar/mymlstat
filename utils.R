@@ -9,6 +9,28 @@ maxIter = 1000
 
 
 
+centerCols = function(X, mu) {
+    #% Make each column have a mean of 0
+    #% We don 't call it center so as not to mask the built-in ' center ' function
+    #% of Octave, whose second argument has a different meaning to ours
+
+    #% This file is from pmtk3.googlecode.com
+
+
+if (nargs() < 2 ||  is.null(mu)) {
+    print("calc mu")
+    mu = mean(X);
+    #% across columns (if matrix)
+}
+#s = size(X);
+#n = s[1]
+#p = s[2]
+x = as.numeric(X)
+X = bsxfun("-", X, mu);
+
+}
+
+
 
 
 ########### rotate a 2d matrix
@@ -144,7 +166,8 @@ poly_data_make = function(sampling="sparse", deg=3, n=21)
   ytestNoisy = ytestNoisefree + rnorm(mean = 0,sd = 1,n = length(xtest)) * sqrt(sigma2)
   
   list(xtrain = xtrain, ytrain = ytrain, xtest = xtest,
-       ytestNoisefree = ytestNoisefree, 
+       ytestNoisefree = ytestNoisefree,
+       ytest = ytestNoisy,
        ytestNoisy = ytestNoisy, sigma2 = sigma2)
   
   
