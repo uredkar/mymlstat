@@ -128,30 +128,17 @@ deg = 5;
 LR = lm.ridge(y ~ x + poly(x, deg), data = pptraindata, lambda = logspace(-10, 1.3, 10))
 
 LM = lm(y ~ x + poly(x, deg), data = pptraindata)
+ypredTest = predict(LM, newdata = data.frame(x = xtest$x1))
+plot(pptraindata$x, pptraindata$y, type = "p", lwd = 2, col = "black", pch = 19)
+lines(xtest$x1, ypredTest, col = "black", lwd = 2)
 
-#plot(LM)
+ypredTest <- scale(xtest[, 1], center = F, scale = LR$scales[1]) %*% LR$coef[, which.min(LR$GCV)] + LR$ym
 
-plot(dtest$x, dtest$y, type = "p", lwd = 2, col = "black", pch=19)
-coff = LM$coefficients
-
-y2 = dtest$x + (dtest$x ^ 2) * coff["poly(x, deg)2"] + (dtest$x ^ 3) * coff["poly(x, deg)3"] + 
-               (dtest$x ^ 4) * coff["poly(x, deg)4"] + 
-               (dtest$x ^ 5) * coff["poly(x, deg)5"] 
-               
-
-
-lines(dtest$x, y2, type = "l", lwd = 4, col = "black")
-
-for (i in 1:length(LR$lambda)) {
-    
-    coff = LR$coef[, i]
-    #    c = sprintf("%f %f %f %f %f", coff[1], coff[2], coff[3], coff[4], coff[5])
-    #print(c)
-
-    y = LR$ym + dtest$x * coff[1] + (dtest$x ^ 2) * coff[2] + (dtest$x ^ 3) * coff[3] + (dtest$x ^ 4) * coff[4] + (dtest$x ^ 5) * coff[5]
-    lines(dtest$x, y, type = "l", lwd = 2, col = mycolor[i])
-
-
-}
+lines(xtest[, 1], ypredTest[, 1], type = "l", lwd = 2, col="red")
+lines(xtest[, 1], ypredTest[, 2], type = "l", lwd = 2, col = "blue")
+lines(xtest[, 1], ypredTest[, 3], type = "l", lwd = 2, col = "green")
+lines(xtest[, 1], ypredTest[, 4], type = "l", lwd = 2, col = "yellow")
+lines(xtest[, 1], ypredTest[, 5], type = "l", lwd = 2)
+lines(xtest[, 1], ypredTest[, 6], type = "l", lwd = 2)
 
 
