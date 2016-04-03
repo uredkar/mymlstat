@@ -1,4 +1,6 @@
-######### orginal code from Pawet Cichosz's book
+######### based pm orginal code from Pawet Cichosz's book
+# I am doing clean up and combine multiple files in to one file
+
 rm(list = ls())
 
 library(lattice)
@@ -8,6 +10,350 @@ library(Matrix)
 library(mlbench)
 
 ############ beyond this pure R to learn SVM, No data files or C code
+
+## data transformation that generates new attributes
+## defined as the products of all original attribute pairs
+trans.mult2 <- function(data) {
+    t(apply(data, 1, function(d) d %o% d))
+}
+
+
+## can be called for both single attribute value vectors and for the whole dataset
+kernel.linear <- function(av1, av2 = av1) {
+    as.matrix(av1) %*% t(av2)
+}
+
+## can be called for both single attribute value vectors and for the whole dataset
+kernel.polynomial <- function(av1, av2 = av1, gamma = 1, b = 0, p = 3) {
+    (gamma * (as.matrix(av1) %*% t(av2)) + b) ^ p
+}
+
+## can be called for both single attribute value vectors and for the whole dataset
+kernel.radial <- function(av1, av2 = av1, gamma = 1) {
+    exp( - gamma * outer(1:nrow(av1 <- as.matrix(av1)), 1:ncol(av2 <- t(av2)),
+                   Vectorize(function(i, j) l2norm(av1[i,] - av2[, j]) ^ 2)))
+}
+
+## can be called for both single attribute value vectors and for the whole dataset
+kernel.sigmoid <- function(av1, av2 = av1, gamma = 0.1, b = 0) {
+    tanh(gamma * (as.matrix(av1) %*% t(av2)) + b)
+}
+
+# perfect representation function for f
+repf.perf <- function(data, w) {
+    w[2 * (n <- ncol(data)) + 3] * tanh(rowSums(cmm(data, w[1:n])) + w[n + 1]) +
+    w[2 * n + 4] * tanh(rowSums(cmm(data, w[(n + 2):(2 * n + 1)])) + w[2 * n + 2]) + w[2 * n + 5]
+}
+
+
+## kernel-based SVR parameter estimation using quadratic programming
+## solvers: "solve.QP" or "ipop"
+svr.kernel <- function(formula, data, eps = 0.01,
+                       kernel = kernel.linear, kernel.args = NULL,
+                       cost = 1, svthres = 1e-3, solver = "solve.QP") {
+    f <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    fvec <- data[[f]] # target function vector
+    amat <- as.matrix(data[, aind]) # attribute value matrix
+    kmat <- do.call(kernel, c(list(amat), kernel.args)) # kernel matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(rbind(cbind(kmat, - kmat), cbind( - kmat, kmat)))$mat,
+                 dvec = c(fvec - eps, - fvec - eps),
+                 Amat = matrix(c(rep(1, nrow(data)), rep(-1, nrow(data)),
+                               diag(1, 2 * nrow(data)), diag(-1, 2 * nrow(data))),
+                             nrow = 2 * nrow(data)),
+                 bvec = c(0, rep(0, 2 * nrow(data)), rep( - cost, 2 * nrow(data))),
+                 meq = 1)
+    else if (solver == "ipop")
+        args <- list(c = c( - fvec + eps, fvec + eps),
+                 H = rbind(cbind(kmat, - kmat), cbind( - kmat, kmat)),
+                 A = c(rep(1, nrow(data)), rep(-1, nrow(data))),
+                 b = 0,
+                 l = rep(0, 2 * nrow(data)),
+                 u = rep(cost, 2 * nrow(data)),
+                 r = 0)
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    beta <- alpha[1:nrow(data)] - alpha[(nrow(data) + 1):(2 * nrow(data))]
+    sv <- which(abs(beta) > svthres)
+    model <- list(coef = beta[sv], mat = amat[sv,, drop = FALSE],
+                kernel = kernel, kernel.args = kernel.args, formula = formula)
+    i <- which.min(abs(beta - cost / 2))
+    `class<-`(c(model,
+              intercept = fvec[i] - unname(predict.kernel(c(model, intercept = 0),
+                                                      data[i, aind, drop = FALSE])) -
+                          sign(beta[i]) * eps),
+            "svr.kernel")
+}
+
+## linear SVR parameter estimation using quadratic programming
+## solvers: "solve.QP" or "ipop"
+svr.linear <- function(formula, data, eps = 0.01, cost = 1, svthres = 1e-3,
+                       solver = "solve.QP") {
+    f <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    fvec <- data[[f]] # target function vector
+    amat <- as.matrix(data[, aind]) # attribute value matrix
+    dpmat <- amat %*% t(amat) # dot product matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(rbind(cbind(dpmat, - dpmat), cbind( - dpmat, dpmat)))$mat,
+                 dvec = c(fvec - eps, - fvec - eps),
+                 Amat = matrix(c(rep(1, nrow(data)), rep(-1, nrow(data)),
+                               diag(1, 2 * nrow(data)), diag(-1, 2 * nrow(data))),
+                             nrow = 2 * nrow(data)),
+                 bvec = c(0, rep(0, 2 * nrow(data)), rep( - cost, 2 * nrow(data))),
+                 meq = 1)
+    else if (solver == "ipop")
+        args <- list(c = c( - fvec + eps, fvec + eps),
+                 H = rbind(cbind(dpmat, - dpmat), cbind( - dpmat, dpmat)),
+                 A = c(rep(1, nrow(data)), rep(-1, nrow(data))),
+                 b = 0,
+                 l = rep(0, 2 * nrow(data)),
+                 u = rep(cost, 2 * nrow(data)),
+                 r = 0)
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    beta <- alpha[1:nrow(data)] - alpha[(nrow(data) + 1):(2 * nrow(data))]
+    sv <- which(abs(beta) > svthres)
+    w <- c(colSums(rmm(amat[sv,], beta[sv]))) # no intercept yet
+    i <- which.min(abs(beta - cost / 2))
+    w <- c(w, intercept = fvec[i] - unname(predict.par(list(repf = repf.linear, w = c(w, 0)),
+                                                 data[i, aind, drop = FALSE])) -
+                        sign(beta[i]) * eps)
+    list(model = `class<-`(list(repf = repf.linear, w = w), "par"), sv = sv)
+}
+
+## plot regression tube lines for linear regression
+## with a single attributes
+plot.tube <- function(w, data, eps, add = FALSE,
+                        col.point = "black", col.line = "black", ...) {
+    # y value corresponding to x on the regression line represented by w
+    lry <- function(x, w) {
+        sum(w * c(x, 1))
+    }
+
+    if (!add)
+        plot(data[, 1], data[, 2], col = col.point,
+            xlab = "a1", ylab = "h", xlim = range(data[, 1]), ylim = range(data[, 2]), ...)
+
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w), lry(max(data[, 1]), w)),
+        col = col.line)
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w - c(0, eps)),
+                            lry(max(data[, 1]), w - c(0, eps))), col = col.line, lty = 3)
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w + c(0, eps)),
+                            lry(max(data[, 1]), w + c(0, eps))), col = col.line, lty = 3)
+}
+
+## kernel-based soft-margin SVM parameter estimation using quadratic programming
+## solvers: "solve.QP" or "ipop"
+svm.kernel <- function(formula, data, kernel = kernel.linear, kernel.args = NULL,
+                       cost = 1, svthres = 1e-3, solver = "solve.QP") {
+    class <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
+    ccmat <- outer(cvec, cvec) # class-class product matrix
+    amat <- as.matrix(data[, aind]) # attribute value matrix
+    kmat <- do.call(kernel, c(list(amat), kernel.args)) # kernel matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(kmat * ccmat)$mat,
+                 dvec = rep(1, nrow(data)),
+                 Amat = matrix(c(cvec, diag(1, nrow(data)), diag(-1, nrow(data))),
+                             nrow = nrow(data)),
+                 bvec = c(0, rep(0, nrow(data)), rep( - cost, nrow(data))),
+                 meq = 1)
+    else if (solver == "ipop")
+        args <- list(c = rep(-1, nrow(data)),
+                 H = kmat * ccmat,
+                 A = cvec,
+                 b = 0,
+                 l = rep(0, nrow(data)),
+                 u = rep(cost, nrow(data)),
+                 r = 0)
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    sv <- which(alpha > svthres)
+    model <- list(coef = cvec[sv] * alpha[sv], mat = amat[sv,, drop = FALSE],
+                kernel = kernel, kernel.args = kernel.args, formula = formula)
+    i <- which.min(abs(alpha - cost / 2))
+    'class<-'(c(model, intercept = cvec[i] -
+                                 unname(predict.kernel(c(model, intercept = 0),
+                                                       data[i, aind, drop = FALSE]))),
+            "svm.kernel")
+}
+
+## kernel-based SVM prediction
+predict.svm.kernel <- function(model, data) {
+    ustep(predict.kernel(model, data))
+}
+
+
+## linear soft-margin SVM parameter estimation using quadratic programming
+## solvers: "solve.QP" or "ipop"
+svm.linear <- function(formula, data, cost = 1, svthres = 1e-3, solver = "solve.QP") {
+    class <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
+    ccmat <- outer(cvec, cvec) # class-class product matrix
+    amat <- as.matrix(data[, aind]) # attribute value matrix
+    dpmat <- amat %*% t(amat) # dot product matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(dpmat * ccmat)$mat,
+                    dvec = rep(1, nrow(data)),
+                    Amat = matrix(c(cvec, diag(1, nrow(data)), diag(-1, nrow(data))),
+                                nrow = nrow(data)),
+                    bvec = c(0, rep(0, nrow(data)), rep( - cost, nrow(data))),
+                    meq = 1)
+    else if (solver == "ipop")
+        args <- list(c = rep(-1, nrow(data)),
+                    H = dpmat * ccmat,
+                    A = cvec,
+                    b = 0,
+                    l = rep(0, nrow(data)),
+                    u = rep(cost, nrow(data)),
+                    r = 0)
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    sv <- which(alpha > svthres)
+    w <- c(colSums(rmm(amat[sv,], cvec[sv] * alpha[sv]))) # no intercept yet
+    i <- which.min(abs(alpha - cost / 2))
+    w <- c(w, intercept = cvec[i] - unname(predict.par(list(repf = repf.linear, w = c(w, 0)),
+                                                    data[i, aind, drop = FALSE])))
+    list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
+}
+
+## linear SVM parameter estimation using dual-form quadratic programming
+## solvers: "solve.QP" or "ipop"
+svm.linear.dual <- function(formula, data, svthres = 1e-3, inf = 1e3, solver = "solve.QP") {
+    class <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
+    ccmat <- outer(cvec, cvec) # class-class product matrix
+    amat <- as.matrix(data[, aind]) # attribute value matrix
+    dpmat <- amat %*% t(amat) # dot product matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(dpmat * ccmat)$mat,
+                     dvec = rep(1, nrow(data)),
+                     Amat = matrix(c(cvec, diag(1, nrow(data))), nrow = nrow(data)),
+                     bvec = rep(0, nrow(data) + 1),
+                     meq = 1)
+    else if (solver == "ipop")
+        args <- list(c = rep(-1, nrow(data)),
+                     H = dpmat * ccmat,
+                     A = cvec,
+                     b = 0,
+                     l = rep(0, nrow(data)),
+                     u = rep(inf, nrow(data)),
+                     r = 0)
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    sv <- which(alpha > svthres)
+    w <- c(colSums(rmm(amat[sv,], cvec[sv] * alpha[sv]))) # no intercept yet
+    p0 <- predict.par(list(repf = repf.linear, w = c(w, 0)), data[, aind, drop = FALSE])
+    w <- c(w, intercept = -(max(p0[cvec == -1]) + min(p0[cvec == 1])) / 2)
+    list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
+}
+
+
+## linear SVM parameter estimation using primal-form quadratic programming
+## solvers: "solve.QP" or "ipop"
+svm.linear.prim <- function(formula, data, svthres = 1e-9, inf = 1e3, solver = "solve.QP") {
+    class <- y.var(formula)
+    attributes <- x.vars(formula, data)
+    aind <- names(data) %in% attributes
+
+    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
+    amat <- cbind(as.matrix(data[, aind]), intercept = 1) # attribute value matrix
+
+    if (solver == "solve.QP")
+        args <- list(Dmat = Matrix::nearPD(rbind(cbind(diag(sum(aind)), 0), 0))$mat,
+                    dvec = rep(0, sum(aind) + 1),
+                    Amat = t(rmm(amat, cvec)),
+                    bvec = rep(1, nrow(data)))
+    else if (solver == "ipop")
+        args <- list(c = rep(0, sum(aind) + 1),
+                    H = rbind(cbind(diag(sum(aind)), 0), 0),
+                    A = rmm(amat, cvec),
+                    b = rep(1, nrow(data)),
+                    l = rep( - inf, sum(aind) + 1),
+                    u = rep(inf, sum(aind) + 1),
+                    r = rep(inf, nrow(data)))
+    else
+        stop("Unknown solver: ", solver)
+
+    qp <- do.call(solver, args)
+    w <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
+    sv <- unname(which(cvec * predict.par(list(repf = repf.linear, w = w),
+                                        data[, aind, drop = FALSE]) <= 1 + svthres))
+    list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
+}
+
+
+## functional margin of w with respect to instances from data
+## using the cvec vector of {-1, 1} class labels
+fmarg <- function(w, data, cvec) {
+    cvec * predict.par(list(repf = repf.linear, w = w), data)
+}
+
+## geometric margin of w with respect to instances from data
+## using the cvec vector of {-1, 1} class labels
+gmarg <- function(w, data, cvec) {
+    fmarg(w, data, cvec) / l2norm(w[ - length(w)])
+}
+
+## plot separating and b-margin lines for linear threshold classification
+## with 2 attributes
+plot.margin <- function(w, data, cvec, b = 1, add = FALSE,
+                        col.sep = "black", col.pos = "grey70", col.neg = "grey30", ...) {
+    # y value corresponding to x on the regression line represented by w
+    lry <- function(x, w) {
+        sum( - w[c(1, 3)] / w[2] * c(x, 1))
+    }
+
+    if (!add) {
+        plot(data[, 1][cvec == 1], data[, 2][cvec == 1], col = col.pos,
+        xlab = "a1", ylab = "a2", xlim = range(data[, 1]), ylim = range(data[, 2]), ...)
+        points(data[, 1][cvec != 1], data[, 2][cvec != 1], col = col.neg, ...)
+    }
+
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w),
+                            lry(max(data[, 1]), w)), col = col.sep, ...)
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w - c(0, 0, b)),
+                            lry(max(data[, 1]), w - c(0, 0, b))), col = col.pos, ...)
+    lines(range(data[, 1]), c(lry(min(data[, 1]), w + c(0, 0, b)),
+                            lry(max(data[, 1]), w + c(0, 0, b))), col = col.neg, ...)
+    list(fmargin = min(fmarg(w, data, cvec)), gmargin = min(gmarg(w, data, cvec)))
+}
+
 
 ## predict using a kernel-based model
 predict.kernel <- function(model, data)
@@ -138,13 +484,9 @@ linsep.sub <- function(formula, data) {
         data)$coef
     wpar <- c(wlm[-1], wlm[1]) # rearrange for predict.par
     predict.par(list(repf = repf.threshold(repf.linear), w = wpar), data[, aind]) ==
-data[[class]]
+                        data[[class]]
 }
 
-# linearly separable training and test subsets
-#lcdat.ls <- linsep.sub(c ~ ., lcdat)
-#lcdat.train.ls <- lcdat[1:200,][lcdat.ls[1:200],]
-#lcdat.test.ls <- lcdat[201:400,][lcdat.ls[201:400],]
 
 ## unit step function
 ustep <- function(v, thres = 0) {
@@ -156,13 +498,15 @@ ustep <- function(v, thres = 0) {
 
 ## apply transformation model to a dataset
 predict.transmod <- function(pred.transm) {
+    # returns a function
     function(model, data, ...) {
+        # returns a data frame
         as.data.frame(sapply(names(data),
                         function(a)
-        if (a %in% names(model) && !is.null(model[[a]]))
-        pred.transm(model[[a]], data[[a]], ...)
-        else data[[a]],
-                        simplify = FALSE))
+                            if (a %in% names(model) && !is.null(model[[a]]))
+                                pred.transm(model[[a]], data[[a]], ...)
+                            else
+                                data[[a]], simplify = FALSE))
     }
 }
 
@@ -170,12 +514,28 @@ predict.transmod <- function(pred.transm) {
 ## wrap single-attribute modeling transformation transm
 ## so that it is applied to all attributes for which condf returns TRUE
 transmod.all <- function(transm, condf = function(v) TRUE) {
+    # returns a function
     function(formula, data, ...) {
         attributes <- x.vars(formula, data)
         sapply(attributes,
-        function(a) if (condf(data[[a]])) transm(data[[a]], ...),
-        simplify = FALSE)
+                    function(a) if (condf(data[[a]])) transm(data[[a]], ...),
+                    simplify = FALSE)
     }
+}
+
+# dataset for plots
+kmf.plot <- function(a1, a2) {
+    2 * a1 - 3 * a2 + 4
+}
+
+# datasets for parameter estimation examples
+kmg <- function(a1, a2, a3, a4) {
+    a1 ^ 2 + 2 * a2 ^ 2 - a3 ^ 2 - 2 * a4 ^ 2 + 2 * a1 - 3 * a2 + 2 * a3 - 3 * a4 + 1
+}
+
+
+kmf <- function(a1, a2, a3, a4) {
+    3 * a1 + 4 * a2 - 2 * a3 + 2 * a4 - 3
 }
 
 
@@ -184,114 +544,78 @@ std <- function(v) {
     list(mean = mean(v, na.rm = TRUE), sd = sd(v, na.rm = TRUE))
 }
 
+########################### main ##########################
 ## standardization of all continuous attributes
 std.all <- transmod.all(std, is.numeric)
 
 ## standardization model prediction
-pred.transm = function(m, v)(v - m$mean) / m$sd
+pred.transm = function(m, v) (v - m$mean) / m$sd
 predict.std <- predict.transmod(pred.transm)
 
+#predict.std = function(model, data, ...) {
+   # as.data.frame(sapply(names(data), function(a) if (a %in% names(model) && !is.null(model[[a]]))
+    #pred.transm(model[[a]], data[[a]], ...)
+    #else data[[a]], simplify = FALSE))
+#}
+
+####################### loading data from ml bench
+
+data(PimaIndiansDiabetes, package = "mlbench")
+data(BostonHousing, package = "mlbench")
+
+set.seed(12)
+
+############ diabetes ##############################
+rpid <- runif(nrow(PimaIndiansDiabetes))
+pid.train <- PimaIndiansDiabetes[rpid >= 0.33,]
+pid.test <- PimaIndiansDiabetes[rpid < 0.33,]
+pid.stdm <- std.all(diabetes ~ ., pid.train)
+pid.std.train <- predict.std(pid.stdm, pid.train)
+pid.std.test <- predict.std(pid.stdm, pid.test)
+
+############### boston housing data #################
+rbh <- runif(nrow(BostonHousing))
+bh.train <- BostonHousing[rbh >= 0.33, -4]
+bh.test <- BostonHousing[rbh < 0.33, -4]
+bh.stdm <- std.all(medv ~ ., bh.train)
+bh.std.train <- predict.std(bh.stdm, bh.train)
+bh.std.test <- predict.std(bh.stdm, bh.test)
+
+set.seed(12)
 
 
 
+# original code
+#kmdat.plot <- `names<-`(expand.grid(seq(1, 5, 0.05), seq(1, 5, 0.05)), c("a1", "a2"))
+#head(kmdat.plot)
+#str(kmdat.plot)
 
-predict.std = function(model, data, ...) {
-    as.data.frame(sapply(names(data), function(a) if (a %in% names(model) && !is.null(model[[a]]))
-    pred.transm(model[[a]], data[[a]], ...)
-    else data[[a]], simplify = FALSE))
-}
-
-####################### loading data
-
-    data(PimaIndiansDiabetes, package = "mlbench")
-    data(BostonHousing, package = "mlbench")
-
-    set.seed(12)
-
-    rpid <- runif(nrow(PimaIndiansDiabetes))
-    pid.train <- PimaIndiansDiabetes[rpid >= 0.33,]
-    pid.test <- PimaIndiansDiabetes[rpid < 0.33,]
-
-    rbh <- runif(nrow(BostonHousing))
-    bh.train <- BostonHousing[rbh >= 0.33, -4]
-    bh.test <- BostonHousing[rbh < 0.33, -4]
-
-    pid.stdm <- std.all(diabetes ~ ., pid.train)
-    pid.std.train <- predict.std(pid.stdm, pid.train)
-    pid.std.test <- predict.std(pid.stdm, pid.test)
-
-    bh.stdm <- std.all(medv ~ ., bh.train)
-    bh.std.train <- predict.std(bh.stdm, bh.train)
-    bh.std.test <- predict.std(bh.stdm, bh.test)
-
-    set.seed(12)
-
-    # dataset for plots
-kmf.plot <- function(a1, a2) {
-    2 * a1 - 3 * a2 + 4
-}
-kmdat.plot <- `names<-`(expand.grid(seq(1, 5, 0.05), seq(1, 5, 0.05)), c("a1", "a2"))
+## simlified code
+kmdat.plot = expand.grid(seq(1, 5, 0.05), seq(1, 5, 0.05))
+names(kmdat.plot) <- c("a1", "a2")
 kmdat.plot$f <- kmf.plot(kmdat.plot$a1, kmdat.plot$a2)
 kmdat.plot$c <- as.factor(ustep(kmdat.plot$f))
 
-# datasets for parameter estimation examples
-kmg <- function(a1, a2, a3, a4) {
-    a1 ^ 2 + 2 * a2 ^ 2 - a3 ^ 2 - 2 * a4 ^ 2 + 2 * a1 - 3 * a2 + 2 * a3 - 3 * a4 + 1
-}
-kmf <- function(a1, a2, a3, a4) {
-    3 * a1 + 4 * a2 - 2 * a3 + 2 * a4 - 3
-}
+
+
 kmdat <- data.frame(a1 = runif(400, min = 1, max = 5), a2 = runif(400, min = 1, max = 5),
-                a3 = runif(400, min = 1, max = 5), a4 = runif(400, min = 1, max = 5))
+                    a3 = runif(400, min = 1, max = 5), a4 = runif(400, min = 1, max = 5))
+
 kmdat$g <- kmg(kmdat$a1, kmdat$a2, kmdat$a3, kmdat$a4)
 kmdat$c <- as.factor(ustep(kmdat$g))
 kmdat$f <- kmf(kmdat$a1, kmdat$a2, kmdat$a3, kmdat$a4)
 
 kmdat.train <- kmdat[1:200,]
-kmdat.test <- kmdat[201:400,]
+kmdat.test  <- kmdat[201:400,]
 
 # linearly separable training and test subsets
-kmdat.ls <- linsep.sub(c ~ a1 + a2 + a3 + a4, kmdat)
+kmdat.ls       <- linsep.sub(c ~ a1 + a2 + a3 + a4, kmdat)
 kmdat.train.ls <- kmdat[1:200,][kmdat.ls[1:200],]
-kmdat.test.ls <- kmdat[201:400,][kmdat.ls[201:400],]
+kmdat.test.ls  <- kmdat[201:400,][kmdat.ls[201:400],]
 
 ########################################
 
-## functional margin of w with respect to instances from data
-## using the cvec vector of {-1, 1} class labels
-fmarg <- function(w, data, cvec) {
-    cvec * predict.par(list(repf = repf.linear, w = w), data)
-}
 
-## geometric margin of w with respect to instances from data
-## using the cvec vector of {-1, 1} class labels
-gmarg <- function(w, data, cvec) {
-    fmarg(w, data, cvec) / l2norm(w[ - length(w)])
-}
-
-## plot separating and b-margin lines for linear threshold classification
-## with 2 attributes
-plot.margin <- function(w, data, cvec, b = 1, add = FALSE,
-                        col.sep = "black", col.pos = "grey70", col.neg = "grey30", ...) {
-    # y value corresponding to x on the regression line represented by w
-    lry <- function(x, w) {
-        sum( - w[c(1, 3)] / w[2] * c(x, 1))
-    }
-
-    if (!add) {
-        plot(data[, 1][cvec == 1], data[, 2][cvec == 1], col = col.pos,
-        xlab = "a1", ylab = "a2", xlim = range(data[, 1]), ylim = range(data[, 2]), ...)
-        points(data[, 1][cvec != 1], data[, 2][cvec != 1], col = col.neg, ...)
-    }
-
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w),
-                            lry(max(data[, 1]), w)), col = col.sep, ...)
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w - c(0, 0, b)),
-                            lry(max(data[, 1]), w - c(0, 0, b))), col = col.pos, ...)
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w + c(0, 0, b)),
-                            lry(max(data[, 1]), w + c(0, 0, b))), col = col.neg, ...)
-    list(fmargin = min(fmarg(w, data, cvec)), gmargin = min(gmarg(w, data, cvec)))
-}
 
 # dataset for margin illustration (skip near-boundary instances from kmdat.plot)
 kmdat.m <- kmdat.plot[abs(kmdat.plot$f) > 2, c("a1", "a2", "c")]
@@ -321,38 +645,6 @@ plot.margin(w.m, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1)
 
 #######################################
 
-## linear SVM parameter estimation using primal-form quadratic programming
-## solvers: "solve.QP" or "ipop"
-svm.linear.prim <- function(formula, data, svthres = 1e-9, inf = 1e3, solver = "solve.QP") {
-    class <- y.var(formula)
-    attributes <- x.vars(formula, data)
-    aind <- names(data) %in% attributes
-
-    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
-    amat <- cbind(as.matrix(data[, aind]), intercept = 1) # attribute value matrix
-
-    if (solver == "solve.QP")
-        args <- list(Dmat = Matrix::nearPD(rbind(cbind(diag(sum(aind)), 0), 0))$mat,
-                    dvec = rep(0, sum(aind) + 1),
-                    Amat = t(rmm(amat, cvec)),
-                    bvec = rep(1, nrow(data)))
-    else if (solver == "ipop")
-        args <- list(c = rep(0, sum(aind) + 1),
-                    H = rbind(cbind(diag(sum(aind)), 0), 0),
-                    A = rmm(amat, cvec),
-                    b = rep(1, nrow(data)),
-                    l = rep( - inf, sum(aind) + 1),
-                    u = rep(inf, sum(aind) + 1),
-                    r = rep(inf, nrow(data)))
-    else
-        stop("Unknown solver: ", solver)
-
-    qp <- do.call(solver, args)
-    w <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-    sv <- unname(which(cvec * predict.par(list(repf = repf.linear, w = w),
-                                        data[, aind, drop = FALSE]) <= 1 + svthres))
-    list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
-}
 
 # estimate linear SVM model parameters
 svm.p.ls <- svm.linear.prim(c ~ a1 + a2 + a3 + a4, kmdat.train.ls)
@@ -367,218 +659,121 @@ err(predict(svm.p.ls$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
 # hard-margin SVM
 svm.mh <- svm.linear.prim(c ~ ., kmdat.m, solver = "ipop")
 
-    # optimal separating and margin lines
-    plot.margin(svm.mh$model$w, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1)
+# optimal separating and margin lines
+plot.margin(svm.mh$model$w, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1)
 
-    # suboptimal separating and margin lines for comparison
-    plot.margin(w.m, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, add = TRUE, lty = 3)
+# suboptimal separating and margin lines for comparison
+plot.margin(w.m, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, add = TRUE, lty = 3)
 
-    #########################################################################3
+#########################################################################3
 
-    ## linear SVM parameter estimation using dual-form quadratic programming
-    ## solvers: "solve.QP" or "ipop"
-    svm.linear.dual <- function(formula, data, svthres = 1e-3, inf = 1e3, solver = "solve.QP") {
-        class <- y.var(formula)
-        attributes <- x.vars(formula, data)
-        aind <- names(data) %in% attributes
+    
+# estimate linear SVM model parameters
+svm.d.ls <- svm.linear.dual(c ~ a1 + a2 + a3 + a4, kmdat.train.ls)
 
-        cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
-        ccmat <- outer(cvec, cvec) # class-class product matrix
-        amat <- as.matrix(data[, aind]) # attribute value matrix
-        dpmat <- amat %*% t(amat) # dot product matrix
+# misclassification error
+err(predict(svm.d.ls$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
+err(predict(svm.d.ls$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
 
-        if (solver == "solve.QP")
-            args <- list(Dmat = Matrix::nearPD(dpmat * ccmat)$mat,
-                     dvec = rep(1, nrow(data)),
-                     Amat = matrix(c(cvec, diag(1, nrow(data))), nrow = nrow(data)),
-                     bvec = rep(0, nrow(data) + 1),
-                     meq = 1)
-        else if (solver == "ipop")
-            args <- list(c = rep(-1, nrow(data)),
-                     H = dpmat * ccmat,
-                     A = cvec,
-                     b = 0,
-                     l = rep(0, nrow(data)),
-                     u = rep(inf, nrow(data)),
-                     r = 0)
-        else
-            stop("Unknown solver: ", solver)
+###########################################################################
 
-        qp <- do.call(solver, args)
-        alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-        sv <- which(alpha > svthres)
-        w <- c(colSums(rmm(amat[sv,], cvec[sv] * alpha[sv]))) # no intercept yet
-        p0 <- predict.par(list(repf = repf.linear, w = c(w, 0)), data[, aind, drop = FALSE])
-        w <- c(w, intercept = -(max(p0[cvec == -1]) + min(p0[cvec == 1])) / 2)
-        list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
-    }
+# linear SVM for the artificial data
+svm.s <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train)
+svm.s.ls <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls)
 
-    # estimate linear SVM model parameters
-    svm.d.ls <- svm.linear.dual(c ~ a1 + a2 + a3 + a4, kmdat.train.ls)
+svm.s.01 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train, cost = 0.1)
+svm.s.ls.01 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls, cost = 0.1)
 
-    # misclassification error
-    err(predict(svm.d.ls$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
-    err(predict(svm.d.ls$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
+svm.s.10 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train, cost = 10)
+svm.s.ls.10 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls, cost = 10)
 
-    ###########################################################################
+# linear SVM for the Pima Indians Diabetes data
+pid.svm.s <- svm.linear(diabetes ~ ., pid.std.train)
+pid.svm.s.01 <- svm.linear(diabetes ~ ., pid.std.train, cost = 0.1)
+pid.svm.s.10 <- svm.linear(diabetes ~ ., pid.std.train, cost = 10)
 
-    ## linear soft-margin SVM parameter estimation using quadratic programming
-    ## solvers: "solve.QP" or "ipop"
-    svm.linear <- function(formula, data, cost = 1, svthres = 1e-3, solver = "solve.QP") {
-        class <- y.var(formula)
-        attributes <- x.vars(formula, data)
-        aind <- names(data) %in% attributes
+# training set misclassification error
+err(predict(svm.s$model, kmdat.train[, 1:4]), kmdat.train$c)
+err(predict(svm.s.01$model, kmdat.train[, 1:4]), kmdat.train$c)
+err(predict(svm.s.10$model, kmdat.train[, 1:4]), kmdat.train$c)
 
-        cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
-        ccmat <- outer(cvec, cvec) # class-class product matrix
-        amat <- as.matrix(data[, aind]) # attribute value matrix
-        dpmat <- amat %*% t(amat) # dot product matrix
+err(predict(svm.s.ls$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
+err(predict(svm.s.ls.01$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
+err(predict(svm.s.ls.10$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
 
-        if (solver == "solve.QP")
-            args <- list(Dmat = Matrix::nearPD(dpmat * ccmat)$mat,
-                     dvec = rep(1, nrow(data)),
-                     Amat = matrix(c(cvec, diag(1, nrow(data)), diag(-1, nrow(data))),
-                                 nrow = nrow(data)),
-                     bvec = c(0, rep(0, nrow(data)), rep( - cost, nrow(data))),
-                     meq = 1)
-        else if (solver == "ipop")
-            args <- list(c = rep(-1, nrow(data)),
-                     H = dpmat * ccmat,
-                     A = cvec,
-                     b = 0,
-                     l = rep(0, nrow(data)),
-                     u = rep(cost, nrow(data)),
-                     r = 0)
-        else
-            stop("Unknown solver: ", solver)
+err(factor(predict(pid.svm.s$model, pid.std.train[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.std.train$diabetes)
+err(factor(predict(pid.svm.s.01$model, pid.std.train[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.std.train$diabetes)
+err(factor(predict(pid.svm.s.10$model, pid.std.train[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.std.train$diabetes)
 
-        qp <- do.call(solver, args)
-        alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-        sv <- which(alpha > svthres)
-        w <- c(colSums(rmm(amat[sv,], cvec[sv] * alpha[sv]))) # no intercept yet
-        i <- which.min(abs(alpha - cost / 2))
-        w <- c(w, intercept = cvec[i] - unname(predict.par(list(repf = repf.linear, w = c(w, 0)),
-                                                     data[i, aind, drop = FALSE])))
-        list(model = `class<-`(list(repf = repf.threshold(repf.linear), w = w), "par"), sv = sv)
-    }
+# test set misclassification error
+err(predict(svm.s$model, kmdat.test[, 1:4]), kmdat.test$c)
+err(predict(svm.s.01$model, kmdat.test[, 1:4]), kmdat.test$c)
+err(predict(svm.s.10$model, kmdat.test[, 1:4]), kmdat.test$c)
 
-    # linear SVM for the artificial data
-    svm.s <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train)
-    svm.s.ls <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls)
+err(predict(svm.s.ls$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
+err(predict(svm.s.ls.01$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
+err(predict(svm.s.ls.10$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
 
-    svm.s.01 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train, cost = 0.1)
-    svm.s.ls.01 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls, cost = 0.1)
+err(factor(predict(pid.svm.s$model, pid.std.test[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.test$diabetes)
+err(factor(predict(pid.svm.s.01$model, pid.std.test[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.test$diabetes)
+err(factor(predict(pid.svm.s.10$model, pid.std.test[, -9]),
+            levels = 0:1, labels = levels(pid.std.train$diabetes)),
+    pid.test$diabetes)
 
-    svm.s.10 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train, cost = 10)
-    svm.s.ls.10 <- svm.linear(c ~ a1 + a2 + a3 + a4, kmdat.train.ls, cost = 10)
+#############################################################
 
-    # linear SVM for the Pima Indians Diabetes data
-    pid.svm.s <- svm.linear(diabetes ~ ., pid.std.train)
-    pid.svm.s.01 <- svm.linear(diabetes ~ ., pid.std.train, cost = 0.1)
-    pid.svm.s.10 <- svm.linear(diabetes ~ ., pid.std.train, cost = 10)
+# soft-margin SVM
+svm.ms.1 <- svm.linear(c ~ ., kmdat.m, solver = "ipop", cost = 1)
+w.ms.1 <- svm.ms.1$model$w
 
-    # training set misclassification error
-    err(predict(svm.s$model, kmdat.train[, 1:4]), kmdat.train$c)
-    err(predict(svm.s.01$model, kmdat.train[, 1:4]), kmdat.train$c)
-    err(predict(svm.s.10$model, kmdat.train[, 1:4]), kmdat.train$c)
+svm.ms.01 <- svm.linear(c ~ ., kmdat.m, solver = "ipop", cost = 0.1)
+w.ms.01 <- svm.ms.01$model$w
 
-    err(predict(svm.s.ls$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
-    err(predict(svm.s.ls.01$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
-    err(predict(svm.s.ls.10$model, kmdat.train.ls[, 1:4]), kmdat.train.ls$c)
+# soft margin: geometric margin corresponding to functional margin of 1
+1 / l2norm(w.ms.1[ - length(w.ms.1)])
+1 / l2norm(w.ms.01[ - length(w.ms.01)])
 
-    err(factor(predict(pid.svm.s$model, pid.std.train[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.std.train$diabetes)
-    err(factor(predict(pid.svm.s.01$model, pid.std.train[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.std.train$diabetes)
-    err(factor(predict(pid.svm.s.10$model, pid.std.train[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.std.train$diabetes)
+# separating and margin lines for cost=1
+plot.margin(w.ms.1, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, main = "Linearly separable")
+# separating and margin lines for cost=0.1
+plot.margin(w.ms.01, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, add = TRUE, lty = 3)
 
-    # test set misclassification error
-    err(predict(svm.s$model, kmdat.test[, 1:4]), kmdat.test$c)
-    err(predict(svm.s.01$model, kmdat.test[, 1:4]), kmdat.test$c)
-    err(predict(svm.s.10$model, kmdat.test[, 1:4]), kmdat.test$c)
+# the same for linearly inseparable data
 
-    err(predict(svm.s.ls$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
-    err(predict(svm.s.ls.01$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
-    err(predict(svm.s.ls.10$model, kmdat.test.ls[, 1:4]), kmdat.test.ls$c)
+kmdat.m.nls <- kmdat.m
+kmdat.m.nls$c <- as.factor(ifelse(runif(nrow(kmdat.m)) < 0.1,
+                                    1 - as.numchar(kmdat.m$c), as.numchar(kmdat.m$c)))
 
-    err(factor(predict(pid.svm.s$model, pid.std.test[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.test$diabetes)
-    err(factor(predict(pid.svm.s.01$model, pid.std.test[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.test$diabetes)
-    err(factor(predict(pid.svm.s.10$model, pid.std.test[, -9]),
-               levels = 0:1, labels = levels(pid.std.train$diabetes)),
-        pid.test$diabetes)
+svm.ms.nls.1 <- svm.linear(c ~ ., kmdat.m.nls, solver = "ipop", cost = 1)
+w.ms.nls.1 <- svm.ms.nls.1$model$w
 
-        #############################################################
+svm.ms.nls.01 <- svm.linear(c ~ ., kmdat.m.nls, solver = "ipop", cost = 0.1)
+w.ms.nls.01 <- svm.ms.nls.01$model$w
 
-        # soft-margin SVM
-        svm.ms.1 <- svm.linear(c ~ ., kmdat.m, solver = "ipop", cost = 1)
-        w.ms.1 <- svm.ms.1$model$w
+# soft margin: geometric margin corresponding to functional margin of 1
+1 / l2norm(w.ms.nls.1[ - length(w.ms.nls.1)])
+1 / l2norm(w.ms.nls.01[ - length(w.ms.nls.01)])
 
-        svm.ms.01 <- svm.linear(c ~ ., kmdat.m, solver = "ipop", cost = 0.1)
-        w.ms.01 <- svm.ms.01$model$w
-
-        # soft margin: geometric margin corresponding to functional margin of 1
-        1 / l2norm(w.ms.1[ - length(w.ms.1)])
-        1 / l2norm(w.ms.01[ - length(w.ms.01)])
-
-        # separating and margin lines for cost=1
-        plot.margin(w.ms.1, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, main = "Linearly separable")
-        # separating and margin lines for cost=0.1
-        plot.margin(w.ms.01, kmdat.m[, 1:2], 2 * as.num0(kmdat.m$c) - 1, add = TRUE, lty = 3)
-
-        # the same for linearly inseparable data
-
-        kmdat.m.nls <- kmdat.m
-        kmdat.m.nls$c <- as.factor(ifelse(runif(nrow(kmdat.m)) < 0.1,
-                                          1 - as.numchar(kmdat.m$c), as.numchar(kmdat.m$c)))
-
-        svm.ms.nls.1 <- svm.linear(c ~ ., kmdat.m.nls, solver = "ipop", cost = 1)
-        w.ms.nls.1 <- svm.ms.nls.1$model$w
-
-        svm.ms.nls.01 <- svm.linear(c ~ ., kmdat.m.nls, solver = "ipop", cost = 0.1)
-        w.ms.nls.01 <- svm.ms.nls.01$model$w
-
-        # soft margin: geometric margin corresponding to functional margin of 1
-        1 / l2norm(w.ms.nls.1[ - length(w.ms.nls.1)])
-        1 / l2norm(w.ms.nls.01[ - length(w.ms.nls.01)])
-
-        # separating and margin lines for cost=1
-        plot.margin(w.ms.nls.1, kmdat.m.nls[, 1:2], 2 * as.num0(kmdat.m.nls$c) - 1,
-                    main = "Linearly inseparable")
-        # separating and margin lines for cost=0.1
-        plot.margin(w.ms.nls.01, kmdat.m.nls[, 1:2], 2 * as.num0(kmdat.m.nls$c) - 1,
-                    add = TRUE, lty = 3)
+# separating and margin lines for cost=1
+plot.margin(w.ms.nls.1, kmdat.m.nls[, 1:2], 2 * as.num0(kmdat.m.nls$c) - 1,
+            main = "Linearly inseparable")
+# separating and margin lines for cost=0.1
+plot.margin(w.ms.nls.01, kmdat.m.nls[, 1:2], 2 * as.num0(kmdat.m.nls$c) - 1,
+            add = TRUE, lty = 3)
 
 
 ####################################################################
 
-## plot regression tube lines for linear regression
-## with a single attributes
-plot.tube <- function(w, data, eps, add = FALSE,
-                        col.point = "black", col.line = "black", ...) {
-    # y value corresponding to x on the regression line represented by w
-    lry <- function(x, w) {
-        sum(w * c(x, 1))
-    }
-
-    if (!add)
-        plot(data[, 1], data[, 2], col = col.point,
-            xlab = "a1", ylab = "h", xlim = range(data[, 1]), ylim = range(data[, 2]), ...)
-
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w), lry(max(data[, 1]), w)),
-        col = col.line)
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w - c(0, eps)),
-                            lry(max(data[, 1]), w - c(0, eps))), col = col.line, lty = 3)
-    lines(range(data[, 1]), c(lry(min(data[, 1]), w + c(0, eps)),
-                            lry(max(data[, 1]), w + c(0, eps))), col = col.line, lty = 3)
-}
 
 # dataset for tube demonstration (take instances with similar a2 values)
 kmdat.t <- kmdat.plot[abs(kmdat.plot$a2 - mean(kmdat.plot$a2)) < 1,]
@@ -591,48 +786,6 @@ plot.tube(w.t, kmdat.t, eps = 1)
 
 ###########################################
 
-## linear SVR parameter estimation using quadratic programming
-## solvers: "solve.QP" or "ipop"
-svr.linear <- function(formula, data, eps = 0.01, cost = 1, svthres = 1e-3,
-                       solver = "solve.QP") {
-    f <- y.var(formula)
-    attributes <- x.vars(formula, data)
-    aind <- names(data) %in% attributes
-
-    fvec <- data[[f]] # target function vector
-    amat <- as.matrix(data[, aind]) # attribute value matrix
-    dpmat <- amat %*% t(amat) # dot product matrix
-
-    if (solver == "solve.QP")
-        args <- list(Dmat = Matrix::nearPD(rbind(cbind(dpmat, - dpmat), cbind( - dpmat, dpmat)))$mat,
-                 dvec = c(fvec - eps, - fvec - eps),
-                 Amat = matrix(c(rep(1, nrow(data)), rep(-1, nrow(data)),
-                               diag(1, 2 * nrow(data)), diag(-1, 2 * nrow(data))),
-                             nrow = 2 * nrow(data)),
-                 bvec = c(0, rep(0, 2 * nrow(data)), rep( - cost, 2 * nrow(data))),
-                 meq = 1)
-    else if (solver == "ipop")
-        args <- list(c = c( - fvec + eps, fvec + eps),
-                 H = rbind(cbind(dpmat, - dpmat), cbind( - dpmat, dpmat)),
-                 A = c(rep(1, nrow(data)), rep(-1, nrow(data))),
-                 b = 0,
-                 l = rep(0, 2 * nrow(data)),
-                 u = rep(cost, 2 * nrow(data)),
-                 r = 0)
-    else
-        stop("Unknown solver: ", solver)
-
-    qp <- do.call(solver, args)
-    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-    beta <- alpha[1:nrow(data)] - alpha[(nrow(data) + 1):(2 * nrow(data))]
-    sv <- which(abs(beta) > svthres)
-    w <- c(colSums(rmm(amat[sv,], beta[sv]))) # no intercept yet
-    i <- which.min(abs(beta - cost / 2))
-    w <- c(w, intercept = fvec[i] - unname(predict.par(list(repf = repf.linear, w = c(w, 0)),
-                                                 data[i, aind, drop = FALSE])) -
-                        sign(beta[i]) * eps)
-    list(model = `class<-`(list(repf = repf.linear, w = w), "par"), sv = sv)
-}
 
 # linear SVR for f
 svrf <- svr.linear(f ~ a1 + a2 + a3 + a4, kmdat.train)
@@ -720,11 +873,6 @@ plot.tube(w.t.1.001, kmdat.t, eps = 1, main = "eps=1, cost=0.01")
 
 #################################
 
-## data transformation that generates new attributes
-## defined as the products of all original attribute pairs
-trans.mult2 <- function(data) {
-    t(apply(data, 1, function(d) d %o% d))
-}
 
 # original dataset
 kmdat.orig <- kmdat.train[1:10, 1:4]
@@ -742,26 +890,6 @@ max(abs((kmdat.dpt - kmdat.dp ^ 2)))
 
 #####################################
 
-## can be called for both single attribute value vectors and for the whole dataset
-kernel.linear <- function(av1, av2 = av1) {
-    as.matrix(av1) %*% t(av2)
-}
-
-## can be called for both single attribute value vectors and for the whole dataset
-kernel.polynomial <- function(av1, av2 = av1, gamma = 1, b = 0, p = 3) {
-    (gamma * (as.matrix(av1) %*% t(av2)) + b) ^ p
-}
-
-## can be called for both single attribute value vectors and for the whole dataset
-kernel.radial <- function(av1, av2 = av1, gamma = 1) {
-    exp( - gamma * outer(1:nrow(av1 <- as.matrix(av1)), 1:ncol(av2 <- t(av2)),
-                   Vectorize(function(i, j) l2norm(av1[i,] - av2[, j]) ^ 2)))
-}
-
-## can be called for both single attribute value vectors and for the whole dataset
-kernel.sigmoid <- function(av1, av2 = av1, gamma = 0.1, b = 0) {
-    tanh(gamma * (as.matrix(av1) %*% t(av2)) + b)
-}
 
 # kernel functions called for instance pairs
 kernel.linear(kmdat.train[1, 1:4], kmdat.train[2, 1:4])
@@ -777,53 +905,6 @@ kernel.sigmoid(kmdat.train[1:10, 1:4])
 
 ##############################################
 
-## kernel-based soft-margin SVM parameter estimation using quadratic programming
-## solvers: "solve.QP" or "ipop"
-svm.kernel <- function(formula, data, kernel = kernel.linear, kernel.args = NULL,
-                       cost = 1, svthres = 1e-3, solver = "solve.QP") {
-    class <- y.var(formula)
-    attributes <- x.vars(formula, data)
-    aind <- names(data) %in% attributes
-
-    cvec <- 2 * as.num0(data[[class]]) - 1 # class vector using {-1, 1} labels
-    ccmat <- outer(cvec, cvec) # class-class product matrix
-    amat <- as.matrix(data[, aind]) # attribute value matrix
-    kmat <- do.call(kernel, c(list(amat), kernel.args)) # kernel matrix
-
-    if (solver == "solve.QP")
-        args <- list(Dmat = Matrix::nearPD(kmat * ccmat)$mat,
-                 dvec = rep(1, nrow(data)),
-                 Amat = matrix(c(cvec, diag(1, nrow(data)), diag(-1, nrow(data))),
-                             nrow = nrow(data)),
-                 bvec = c(0, rep(0, nrow(data)), rep( - cost, nrow(data))),
-                 meq = 1)
-    else if (solver == "ipop")
-        args <- list(c = rep(-1, nrow(data)),
-                 H = kmat * ccmat,
-                 A = cvec,
-                 b = 0,
-                 l = rep(0, nrow(data)),
-                 u = rep(cost, nrow(data)),
-                 r = 0)
-    else
-        stop("Unknown solver: ", solver)
-
-    qp <- do.call(solver, args)
-    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-    sv <- which(alpha > svthres)
-    model <- list(coef = cvec[sv] * alpha[sv], mat = amat[sv,, drop = FALSE],
-                kernel = kernel, kernel.args = kernel.args, formula = formula)
-    i <- which.min(abs(alpha - cost / 2))
-    'class<-'(c(model, intercept = cvec[i] -
-                                 unname(predict.kernel(c(model, intercept = 0),
-                                                       data[i, aind, drop = FALSE]))),
-            "svm.kernel")
-}
-
-## kernel-based SVM prediction
-predict.svm.kernel <- function(model, data) {
-    ustep(predict.kernel(model, data))
-}
 
 # kernel-based SVM for the artificial data
 svm.kl <- svm.kernel(c ~ a1 + a2 + a3 + a4, kmdat.train)
@@ -867,51 +948,6 @@ err(factor(predict(pid.svm.kr, pid.std.test[, -9]),
 
 #################################
 
-## kernel-based SVR parameter estimation using quadratic programming
-## solvers: "solve.QP" or "ipop"
-svr.kernel <- function(formula, data, eps = 0.01,
-                       kernel = kernel.linear, kernel.args = NULL,
-                       cost = 1, svthres = 1e-3, solver = "solve.QP") {
-    f <- y.var(formula)
-    attributes <- x.vars(formula, data)
-    aind <- names(data) %in% attributes
-
-    fvec <- data[[f]] # target function vector
-    amat <- as.matrix(data[, aind]) # attribute value matrix
-    kmat <- do.call(kernel, c(list(amat), kernel.args)) # kernel matrix
-
-    if (solver == "solve.QP")
-        args <- list(Dmat = Matrix::nearPD(rbind(cbind(kmat, - kmat), cbind( - kmat, kmat)))$mat,
-                 dvec = c(fvec - eps, - fvec - eps),
-                 Amat = matrix(c(rep(1, nrow(data)), rep(-1, nrow(data)),
-                               diag(1, 2 * nrow(data)), diag(-1, 2 * nrow(data))),
-                             nrow = 2 * nrow(data)),
-                 bvec = c(0, rep(0, 2 * nrow(data)), rep( - cost, 2 * nrow(data))),
-                 meq = 1)
-    else if (solver == "ipop")
-        args <- list(c = c( - fvec + eps, fvec + eps),
-                 H = rbind(cbind(kmat, - kmat), cbind( - kmat, kmat)),
-                 A = c(rep(1, nrow(data)), rep(-1, nrow(data))),
-                 b = 0,
-                 l = rep(0, 2 * nrow(data)),
-                 u = rep(cost, 2 * nrow(data)),
-                 r = 0)
-    else
-        stop("Unknown solver: ", solver)
-
-    qp <- do.call(solver, args)
-    alpha <- if (solver == "solve.QP") qp$solution else if (solver == "ipop") qp@primal
-    beta <- alpha[1:nrow(data)] - alpha[(nrow(data) + 1):(2 * nrow(data))]
-    sv <- which(abs(beta) > svthres)
-    model <- list(coef = beta[sv], mat = amat[sv,, drop = FALSE],
-                kernel = kernel, kernel.args = kernel.args, formula = formula)
-    i <- which.min(abs(beta - cost / 2))
-    `class<-`(c(model,
-              intercept = fvec[i] - unname(predict.kernel(c(model, intercept = 0),
-                                                      data[i, aind, drop = FALSE])) -
-                          sign(beta[i]) * eps),
-            "svr.kernel")
-}
 
 ## kernel-based SVR prediction
 predict.svr.kernel <- predict.kernel
@@ -999,81 +1035,45 @@ lrdat$f4 <- 2 * tanh(lrdat$a1 - 2 * lrdat$a2 + 3 * lrdat$a3 - lrdat$a4 + 1) -
 lrdat.train <- lrdat[1:200,]
 lrdat.test <- lrdat[201:400,]
 
-if (TRUE) {
+# kernel models for producing plots
+kmplot <- list(coef = c(rep(1, 50), rep(-2, 50)),
+            mat = as.matrix(kmdat.plot[sample(nrow(kmdat.plot), 100), 1:2]),
+            intercept = 1, formula = f ~ a1 + a2)
+kmplot.l <- `class<-`(c(kmplot, kernel = kernel.linear), "kernel")
+kmplot.p <- `class<-`(c(kmplot, kernel = kernel.polynomial), "kernel")
+kmplot.r <- `class<-`(c(kmplot, kernel = kernel.radial), "kernel")
+kmplot.s <- `class<-`(c(kmplot, kernel = kernel.sigmoid), "kernel")
 
-    # kernel models for producing plots
-    kmplot <- list(coef = c(rep(1, 50), rep(-2, 50)),
-                mat = as.matrix(kmdat.plot[sample(nrow(kmdat.plot), 100), 1:2]),
-                intercept = 1, formula = f ~ a1 + a2)
-    kmplot.l <- `class<-`(c(kmplot, kernel = kernel.linear), "kernel")
-    kmplot.p <- `class<-`(c(kmplot, kernel = kernel.polynomial), "kernel")
-    kmplot.r <- `class<-`(c(kmplot, kernel = kernel.radial), "kernel")
-    kmplot.s <- `class<-`(c(kmplot, kernel = kernel.sigmoid), "kernel")
+# generate predictions using different kernel functions
+kmdat.plot$hl <- predict(kmplot.l, kmdat.plot)
+kmdat.plot$hp <- predict(kmplot.p, kmdat.plot)
+kmdat.plot$hr <- predict(kmplot.r, kmdat.plot)
+kmdat.plot$hs <- predict(kmplot.s, kmdat.plot)
 
-    # generate predictions using different kernel functions
-    kmdat.plot$hl <- predict(kmplot.l, kmdat.plot)
-    kmdat.plot$hp <- predict(kmplot.p, kmdat.plot)
-    kmdat.plot$hr <- predict(kmplot.r, kmdat.plot)
-    kmdat.plot$hs <- predict(kmplot.s, kmdat.plot)
+# plot prediction surfaces
+wf.kl <- wireframe(hl ~ a1 + a2, kmdat.plot, col = "black", zoom = 0.8)
+wf.kp <- wireframe(hp ~ a1 + a2, kmdat.plot, col = "blue", zoom = 0.8)
+wf.kr <- wireframe(hr ~ a1 + a2, kmdat.plot, col = "red", zoom = 0.8)
+wf.ks <- wireframe(hs ~ a1 + a2, kmdat.plot, col = "green", zoom = 0.8)
 
-    # plot prediction surfaces
-    wf.kl <- wireframe(hl ~ a1 + a2, kmdat.plot, col = "black", zoom = 0.8)
-    wf.kp <- wireframe(hp ~ a1 + a2, kmdat.plot, col = "blue", zoom = 0.8)
-    wf.kr <- wireframe(hr ~ a1 + a2, kmdat.plot, col = "red", zoom = 0.8)
-    wf.ks <- wireframe(hs ~ a1 + a2, kmdat.plot, col = "green", zoom = 0.8)
-
-    print(wf.kl, split = c(1, 1, 2, 2), more = TRUE)
-    print(wf.kp, split = c(2, 1, 2, 2), more = TRUE)
-    print(wf.kr, split = c(1, 2, 2, 2), more = TRUE)
-    print(wf.ks, split = c(2, 2, 2, 2))
-
-}
+print(wf.kl, split = c(1, 1, 2, 2), more = TRUE)
+print(wf.kp, split = c(2, 1, 2, 2), more = TRUE)
+print(wf.kr, split = c(1, 2, 2, 2), more = TRUE)
+print(wf.ks, split = c(2, 2, 2, 2))
 
 
 
-if (TRUE) {
-
-    # usage examples
-    l2norm(3:4)
-    l2norm(rep(3, 4))
-
-}
-
-if (TRUE) {
-
-    # usage examples
-    rmm(matrix(1:9, nrow = 3), 10 ^ (0:2))
-    rmm(matrix(1:12, nrow = 4), 10 ^ (0:3))
-
-    cmm(matrix(1:9, ncol = 3), 10 ^ (0:2))
-    cmm(matrix(1:12, ncol = 4), 10 ^ (0:3))
-
-}
 
 
-if (TRUE) {
-    # usage examples
-    ustep(seq(-1, 1, 0.25))
-    ustep(seq(-1, 1, 0.25), 0.5)
 
-}
 
-if (TRUE) {
 
-    # perfect representation function for f
-    repf.perf <- function(data, w) {
-        w[2 * (n <- ncol(data)) + 3] * tanh(rowSums(cmm(data, w[1:n])) + w[n + 1]) +
-        w[2 * n + 4] * tanh(rowSums(cmm(data, w[(n + 2):(2 * n + 1)])) + w[2 * n + 2]) + w[2 * n + 5]
-    }
-
-    # perfect parameters for f
-    w.perf <- c(1, -2, 3, -1, 1, -2, 3, -2, 1, -1, 2, -3, 2)
-    # perfect model for f
-    mod.perf <- `class<-`(list(w = w.perf, repf = repf.perf), "par")
-    # test set error
-    mse(predict(mod.perf, prdat.test[, 1:4]), prdat.test$f)
-
-}
+# perfect parameters for f
+w.perf <- c(1, -2, 3, -1, 1, -2, 3, -2, 1, -1, 2, -3, 2)
+# perfect model for f
+mod.perf <- `class<-`(list(w = w.perf, repf = repf.perf), "par")
+# test set error
+mse(predict(mod.perf, prdat.test[, 1:4]), prdat.test$f)
 
 
 
