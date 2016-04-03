@@ -5,12 +5,13 @@ library(lattice)
 library(quadprog)
 library(kernlab)
 library(Matrix)
-
+library(mlbench)
 
 ############ beyond this pure R to learn SVM, No data files or C code
 
 ## predict using a kernel-based model
-predict.kernel <- function(model, data) {
+predict.kernel <- function(model, data)
+{
     attributes <- x.vars(model$formula, data)
     aind <- names(data) %in% attributes
     amat <- as.matrix(data[, aind, drop = FALSE])
@@ -19,47 +20,12 @@ predict.kernel <- function(model, data) {
 }
 
 
-if (FALSE) {
-
-    # kernel models for producing plots
-    kmplot <- list(coef = c(rep(1, 50), rep(-2, 50)),
-                mat = as.matrix(kmdat.plot[sample(nrow(kmdat.plot), 100), 1:2]),
-                intercept = 1, formula = f ~ a1 + a2)
-    kmplot.l <- `class<-`(c(kmplot, kernel = kernel.linear), "kernel")
-    kmplot.p <- `class<-`(c(kmplot, kernel = kernel.polynomial), "kernel")
-    kmplot.r <- `class<-`(c(kmplot, kernel = kernel.radial), "kernel")
-    kmplot.s <- `class<-`(c(kmplot, kernel = kernel.sigmoid), "kernel")
-
-    # generate predictions using different kernel functions
-    kmdat.plot$hl <- predict(kmplot.l, kmdat.plot)
-    kmdat.plot$hp <- predict(kmplot.p, kmdat.plot)
-    kmdat.plot$hr <- predict(kmplot.r, kmdat.plot)
-    kmdat.plot$hs <- predict(kmplot.s, kmdat.plot)
-
-    # plot prediction surfaces
-    wf.kl <- wireframe(hl ~ a1 + a2, kmdat.plot, col = "black", zoom = 0.8)
-    wf.kp <- wireframe(hp ~ a1 + a2, kmdat.plot, col = "blue", zoom = 0.8)
-    wf.kr <- wireframe(hr ~ a1 + a2, kmdat.plot, col = "red", zoom = 0.8)
-    wf.ks <- wireframe(hs ~ a1 + a2, kmdat.plot, col = "green", zoom = 0.8)
-
-    print(wf.kl, split = c(1, 1, 2, 2), more = TRUE)
-    print(wf.kp, split = c(2, 1, 2, 2), more = TRUE)
-    print(wf.kr, split = c(1, 2, 2, 2), more = TRUE)
-    print(wf.ks, split = c(2, 2, 2, 2))
-
-}
-
 
 mse <- function(pred.y, true.y) {
     mean((true.y - pred.y) ^ 2)
 }
 
 
-if (FALSE) {
-
-    mse(predict(bh.tree, bh.test), bh.test$medv)
-
-}
 
 err <- function(pred.y, true.y)
 {
@@ -75,14 +41,6 @@ l2norm <- function(v)
 }
 
 
-if (FALSE)
-{
-
-    # usage examples
-    l2norm(3:4)
-    l2norm(rep(3, 4))
-
-}
 
 ## multiply all rows of matrix m by the corresponding elements of vector v
 rmm <- function(m, v)
@@ -97,17 +55,6 @@ cmm <- function(m, v)
 }
 
 
-if (FALSE)
-{
-
-    # usage examples
-    rmm(matrix(1:9, nrow = 3), 10 ^ (0:2))
-    rmm(matrix(1:12, nrow = 4), 10 ^ (0:3))
-
-    cmm(matrix(1:9, ncol = 3), 10 ^ (0:2))
-    cmm(matrix(1:12, ncol = 4), 10 ^ (0:3))
-
-}
 
 
 
@@ -118,17 +65,6 @@ repf.linear <- function(data, w)
 }
 
 
-if (FALSE)
-{
-
-    # perfect parameter vector for f1
-    w.perf1 <- c(3, 4, -2, 2, -3)
-    # perfect model for f1
-    mod.perf1 <- `class<-`(list(w = w.perf1, repf = repf.linear), "par")
-    # test set error
-    mse(predict(mod.perf1, lrdat.test[, 1:4]), lrdat.test$f1)
-
-}
 
 ## threshold representation function
 repf.threshold <- function(repf)
@@ -143,16 +79,6 @@ grad.threshold <- function(grad)
 }
 
 
-if (FALSE)
-{
-
-    # perfect threshold model
-    perf.threshold <- `class<-`(list(repf = repf.threshold(repf.perf), w = w.perf), "par")
-    # test set error
-    err(predict(perf.threshold, pcdat.test[, 1:4]), pcdat.test$c)
-
-}
-
 
 ## parametric regression prediction for a given model and dataset
 predict.par <- function(model, data)
@@ -161,23 +87,6 @@ predict.par <- function(model, data)
 }
 
 
-if (FALSE)
-{
-
-    # perfect representation function for f
-    repf.perf <- function(data, w) {
-        w[2 * (n <- ncol(data)) + 3] * tanh(rowSums(cmm(data, w[1:n])) + w[n + 1]) +
-        w[2 * n + 4] * tanh(rowSums(cmm(data, w[(n + 2):(2 * n + 1)])) + w[2 * n + 2]) + w[2 * n + 5]
-    }
-
-    # perfect parameters for f
-    w.perf <- c(1, -2, 3, -1, 1, -2, 3, -2, 1, -1, 2, -3, 2)
-    # perfect model for f
-    mod.perf <- `class<-`(list(w = w.perf, repf = repf.perf), "par")
-    # test set error
-    mse(predict(mod.perf, prdat.test[, 1:4]), prdat.test$f)
-
-}
 
 
 
@@ -195,15 +104,6 @@ as.numchar <- function(v) {
 }
 
 
-if (FALSE) {
-
-    # usage examples
-    as.num0(as.factor(0:9))
-    as.num0(as.factor(1:10))
-    as.numchar(as.factor(0:9))
-    as.numchar(as.factor(1:10))
-
-}
 
 
 
@@ -215,13 +115,6 @@ make.formula <- function(y.var, x.vars) {
 }
 
 
-if (FALSE) {
-
-    # usage example
-    make.formula(names(weather)[5], names(weather)[1:3])
-    make.formula(names(weather)[5], ".")
-
-}
 
 ## extract input attribute names from a formula
 x.vars <- function(formula, data) {
@@ -234,14 +127,6 @@ y.var <- function(formula) {
 }
 
 
-if (FALSE) {
-
-    # usage examples
-    x.vars(play ~ outlook + temperature, weather)
-    x.vars(play ~ ., weather)
-    y.var(play ~ .)
-
-}
 
 ## identify a linearly separable subset of data
 linsep.sub <- function(formula, data) {
@@ -267,13 +152,6 @@ ustep <- function(v, thres = 0) {
 }
 
 
-if (FALSE) {
-
-    # usage examples
-    ustep(seq(-1, 1, 0.25))
-    ustep(seq(-1, 1, 0.25), 0.5)
-
-}
 
 
 ## apply transformation model to a dataset
@@ -314,35 +192,6 @@ pred.transm = function(m, v)(v - m$mean) / m$sd
 predict.std <- predict.transmod(pred.transm)
 
 
-if (FALSE) {
-
-    # standardization model for the weatherc data
-    w.stdm <- std.all(play ~ ., weatherc)
-    # applied to the weatherc data
-    w.std <- predict.std(w.stdm, weatherc)
-
-    # standardization model for the Glass data
-    g.stdm <- std.all(Type ~ ., g.train)
-    # applied to the training and test sets
-    g.train.std <- predict.std(g.stdm, g.train)
-    g.test.std <- predict.std(g.stdm, g.test)
-
-}
-
-
-
-
-if (FALSE) {
-
-    # simple centering (mean subtraction) transformation
-    center.m <- transmod.all(mean, is.numeric)
-    # performed on the weatherc data
-    w.cm <- center.m(play ~ ., weatherc)
-    # applied to the weatherc data
-    predict.center.m <- predict.transmod(function(m, v) v - m)
-    predict.center.m(w.cm, weatherc)
-
-}
 
 
 
@@ -1119,3 +968,113 @@ mse(predict(bh.svr.kl, bh.std.test[, -13]), bh.std.test$medv)
 mse(predict(bh.svr.kr, bh.std.test[, -13]), bh.std.test$medv)
 
 ###################################
+
+set.seed(12)
+
+# generate artificial data
+prdat <- data.frame(a1 = floor(runif(400, min = 1, max = 5)),
+                    a2 = floor(runif(400, min = 1, max = 5)),
+                    a3 = floor(runif(400, min = 1, max = 5)),
+                    a4 = floor(runif(400, min = 1, max = 5)))
+prdat$f <- 2 * tanh(prdat$a1 - 2 * prdat$a2 + 3 * prdat$a3 - prdat$a4 + 1) -
+           3 * tanh(-2 * prdat$a1 + 3 * prdat$a2 - 2 * prdat$a3 + prdat$a4 - 1) + 2
+
+# training and test subsets
+prdat.train <- prdat[1:200,]
+prdat.test <- prdat[201:400,]
+
+# generate artificial data
+lrdat <- data.frame(a1 = floor(runif(400, min = 1, max = 5)),
+                    a2 = floor(runif(400, min = 1, max = 5)),
+                    a3 = floor(runif(400, min = 1, max = 5)),
+                    a4 = floor(runif(400, min = 1, max = 5)))
+lrdat$f1 <- 3 * lrdat$a1 + 4 * lrdat$a2 - 2 * lrdat$a3 + 2 * lrdat$a4 - 3
+lrdat$f2 <- tanh(lrdat$f1 / 10)
+lrdat$f3 <- lrdat$a1 ^ 2 + 2 * lrdat$a2 ^ 2 - lrdat$a3 ^ 2 - 2 * lrdat$a4 ^ 2 +
+            2 * lrdat$a1 - 3 * lrdat$a2 + 2 * lrdat$a3 - 3 * lrdat$a4 + 1
+lrdat$f4 <- 2 * tanh(lrdat$a1 - 2 * lrdat$a2 + 3 * lrdat$a3 - lrdat$a4 + 1) -
+            3 * tanh(-2 * lrdat$a1 + 3 * lrdat$a2 - 2 * lrdat$a3 + lrdat$a4 - 1) + 2
+
+# training and test subsets
+lrdat.train <- lrdat[1:200,]
+lrdat.test <- lrdat[201:400,]
+
+if (TRUE) {
+
+    # kernel models for producing plots
+    kmplot <- list(coef = c(rep(1, 50), rep(-2, 50)),
+                mat = as.matrix(kmdat.plot[sample(nrow(kmdat.plot), 100), 1:2]),
+                intercept = 1, formula = f ~ a1 + a2)
+    kmplot.l <- `class<-`(c(kmplot, kernel = kernel.linear), "kernel")
+    kmplot.p <- `class<-`(c(kmplot, kernel = kernel.polynomial), "kernel")
+    kmplot.r <- `class<-`(c(kmplot, kernel = kernel.radial), "kernel")
+    kmplot.s <- `class<-`(c(kmplot, kernel = kernel.sigmoid), "kernel")
+
+    # generate predictions using different kernel functions
+    kmdat.plot$hl <- predict(kmplot.l, kmdat.plot)
+    kmdat.plot$hp <- predict(kmplot.p, kmdat.plot)
+    kmdat.plot$hr <- predict(kmplot.r, kmdat.plot)
+    kmdat.plot$hs <- predict(kmplot.s, kmdat.plot)
+
+    # plot prediction surfaces
+    wf.kl <- wireframe(hl ~ a1 + a2, kmdat.plot, col = "black", zoom = 0.8)
+    wf.kp <- wireframe(hp ~ a1 + a2, kmdat.plot, col = "blue", zoom = 0.8)
+    wf.kr <- wireframe(hr ~ a1 + a2, kmdat.plot, col = "red", zoom = 0.8)
+    wf.ks <- wireframe(hs ~ a1 + a2, kmdat.plot, col = "green", zoom = 0.8)
+
+    print(wf.kl, split = c(1, 1, 2, 2), more = TRUE)
+    print(wf.kp, split = c(2, 1, 2, 2), more = TRUE)
+    print(wf.kr, split = c(1, 2, 2, 2), more = TRUE)
+    print(wf.ks, split = c(2, 2, 2, 2))
+
+}
+
+
+
+if (TRUE) {
+
+    # usage examples
+    l2norm(3:4)
+    l2norm(rep(3, 4))
+
+}
+
+if (TRUE) {
+
+    # usage examples
+    rmm(matrix(1:9, nrow = 3), 10 ^ (0:2))
+    rmm(matrix(1:12, nrow = 4), 10 ^ (0:3))
+
+    cmm(matrix(1:9, ncol = 3), 10 ^ (0:2))
+    cmm(matrix(1:12, ncol = 4), 10 ^ (0:3))
+
+}
+
+
+if (TRUE) {
+    # usage examples
+    ustep(seq(-1, 1, 0.25))
+    ustep(seq(-1, 1, 0.25), 0.5)
+
+}
+
+if (TRUE) {
+
+    # perfect representation function for f
+    repf.perf <- function(data, w) {
+        w[2 * (n <- ncol(data)) + 3] * tanh(rowSums(cmm(data, w[1:n])) + w[n + 1]) +
+        w[2 * n + 4] * tanh(rowSums(cmm(data, w[(n + 2):(2 * n + 1)])) + w[2 * n + 2]) + w[2 * n + 5]
+    }
+
+    # perfect parameters for f
+    w.perf <- c(1, -2, 3, -1, 1, -2, 3, -2, 1, -1, 2, -3, 2)
+    # perfect model for f
+    mod.perf <- `class<-`(list(w = w.perf, repf = repf.perf), "par")
+    # test set error
+    mse(predict(mod.perf, prdat.test[, 1:4]), prdat.test$f)
+
+}
+
+
+
+
