@@ -9,10 +9,13 @@ library(kernlab)
 library(Matrix)
 library(mlbench)
 
+set.seed(12)
+
 ############ beyond this pure R to learn SVM, No data files or C code
 
 ## data transformation that generates new attributes
 ## defined as the products of all original attribute pairs
+## for kernel trick demo
 trans.mult2 <- function(data) {
     t(apply(data, 1, function(d) d %o% d))
 }
@@ -545,6 +548,13 @@ std <- function(v) {
 }
 
 ########################### main ##########################
+
+
+
+
+
+
+
 ## standardization of all continuous attributes
 std.all <- transmod.all(std, is.numeric)
 
@@ -552,18 +562,13 @@ std.all <- transmod.all(std, is.numeric)
 pred.transm = function(m, v) (v - m$mean) / m$sd
 predict.std <- predict.transmod(pred.transm)
 
-#predict.std = function(model, data, ...) {
-   # as.data.frame(sapply(names(data), function(a) if (a %in% names(model) && !is.null(model[[a]]))
-    #pred.transm(model[[a]], data[[a]], ...)
-    #else data[[a]], simplify = FALSE))
-#}
 
 ####################### loading data from ml bench
 
 data(PimaIndiansDiabetes, package = "mlbench")
 data(BostonHousing, package = "mlbench")
 
-set.seed(12)
+
 
 ############ diabetes ##############################
 rpid <- runif(nrow(PimaIndiansDiabetes))
@@ -581,10 +586,8 @@ bh.stdm <- std.all(medv ~ ., bh.train)
 bh.std.train <- predict.std(bh.stdm, bh.train)
 bh.std.test <- predict.std(bh.stdm, bh.test)
 
-set.seed(12)
 
-
-
+############### artificial data #####################3
 # original code
 #kmdat.plot <- `names<-`(expand.grid(seq(1, 5, 0.05), seq(1, 5, 0.05)), c("a1", "a2"))
 #head(kmdat.plot)
@@ -593,13 +596,16 @@ set.seed(12)
 ## simlified code
 kmdat.plot = expand.grid(seq(1, 5, 0.05), seq(1, 5, 0.05))
 names(kmdat.plot) <- c("a1", "a2")
+
 kmdat.plot$f <- kmf.plot(kmdat.plot$a1, kmdat.plot$a2)
 kmdat.plot$c <- as.factor(ustep(kmdat.plot$f))
 
 
 
-kmdat <- data.frame(a1 = runif(400, min = 1, max = 5), a2 = runif(400, min = 1, max = 5),
-                    a3 = runif(400, min = 1, max = 5), a4 = runif(400, min = 1, max = 5))
+kmdat <- data.frame(a1 = runif(400, min = 1, max = 5),
+                    a2 = runif(400, min = 1, max = 5),
+                    a3 = runif(400, min = 1, max = 5),
+                    a4 = runif(400, min = 1, max = 5))
 
 kmdat$g <- kmg(kmdat$a1, kmdat$a2, kmdat$a3, kmdat$a4)
 kmdat$c <- as.factor(ustep(kmdat$g))
@@ -607,7 +613,7 @@ kmdat$f <- kmf(kmdat$a1, kmdat$a2, kmdat$a3, kmdat$a4)
 
 kmdat.train <- kmdat[1:200,]
 kmdat.test  <- kmdat[201:400,]
-
+#head(kmdat)
 # linearly separable training and test subsets
 kmdat.ls       <- linsep.sub(c ~ a1 + a2 + a3 + a4, kmdat)
 kmdat.train.ls <- kmdat[1:200,][kmdat.ls[1:200],]
@@ -873,8 +879,9 @@ plot.tube(w.t.1.001, kmdat.t, eps = 1, main = "eps=1, cost=0.01")
 
 #################################
 
-
+# kernel trick
 # original dataset
+# inflate the original attributes/columns but the dot product is still the same
 kmdat.orig <- kmdat.train[1:10, 1:4]
 # dot product matrix for the original dataset
 kmdat.dp <- as.matrix(kmdat.orig) %*% t(kmdat.orig)
@@ -1045,6 +1052,7 @@ kmplot.r <- `class<-`(c(kmplot, kernel = kernel.radial), "kernel")
 kmplot.s <- `class<-`(c(kmplot, kernel = kernel.sigmoid), "kernel")
 
 # generate predictions using different kernel functions
+
 kmdat.plot$hl <- predict(kmplot.l, kmdat.plot)
 kmdat.plot$hp <- predict(kmplot.p, kmdat.plot)
 kmdat.plot$hr <- predict(kmplot.r, kmdat.plot)
@@ -1056,12 +1064,18 @@ wf.kp <- wireframe(hp ~ a1 + a2, kmdat.plot, col = "blue", zoom = 0.8)
 wf.kr <- wireframe(hr ~ a1 + a2, kmdat.plot, col = "red", zoom = 0.8)
 wf.ks <- wireframe(hs ~ a1 + a2, kmdat.plot, col = "green", zoom = 0.8)
 
+dev.off()
+dev.new()
+par("mfrow")
+print(wf.kl)
 print(wf.kl, split = c(1, 1, 2, 2), more = TRUE)
 print(wf.kp, split = c(2, 1, 2, 2), more = TRUE)
 print(wf.kr, split = c(1, 2, 2, 2), more = TRUE)
 print(wf.ks, split = c(2, 2, 2, 2))
 
-
+with(kmdat.plot,
+plot3d(a1, a2, hl)) # this will draw plane.
+# adding of points to the graphics.
 
 
 

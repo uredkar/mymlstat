@@ -9,12 +9,12 @@ t <- data.frame(x = runif(100), y = runif(100), z = runif(100), cl = NA)
 t$cl <- 2 * t$x + 3 * t$y - 5 * t$z
 train1 = t
 train1[1:10,]
+
 matplot(train1[1:10,])
 
 t$cl <- as.factor(ifelse(t$cl > 0, 1, -1))
 train = t[1:4,]
-
-plot3d(x = as.vector(train[1]), y = as.vector(train[2]), z = as.vector(train[3]))
+with(train,plot3d(x , y , z ))
 
 svm_model <- svm(cl ~ x + y + z, t, type = 'C-classification', kernel = 'linear', scale = FALSE)
 
