@@ -244,14 +244,17 @@ center_kernel <- function(kernel)
   ones <- matrix(rep(1,m),m)
   (diag(m) - ones %*% t(ones) / m)*kernel*(diag(m) - ones %*% t(ones) / m)
 }
+
 f_product<- function(x,y)
 {
   sum(diag(crossprod(t(x),y)))
 }
+
 f_norm<- function(x)
 {
   sqrt(f_product(x,x))
 }
+
 kernel_alignment <- function(x,y)
 {
   f_product(x,y)/(f_norm(x)*f_norm(y))
