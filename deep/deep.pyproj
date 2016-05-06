@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{986a3350-b57a-46d1-8ac0-0b3475740f08}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>kerastutorial.py</StartupFile>
+    <SearchPath />
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId />
+    <InterpreterVersion />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+    <PtvsTargetsFile>$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets</PtvsTargetsFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="cA.py" />
+    <Compile Include="convolutional_mlp.py" />
+    <Compile Include="dA.py" />
+    <Compile Include="dae.py" />
+    <Compile Include="DBN.py" />
+    <Compile Include="deep.py" />
+    <Compile Include="hmc\hmc.py" />
+    <Compile Include="hmc\test_hmc.py" />
+    <Compile Include="hmc\__init__.py" />
+    <Compile Include="imdb.py" />
+    <Compile Include="imdb_preprocess.py" />
+    <Compile Include="kerastutorial.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="logistic_cg.py" />
+    <Compile Include="logistic_sgd.py" />
+    <Compile Include="lstm.py" />
+    <Compile Include="mcRBM\hmc.py" />
+    <Compile Include="mcRBM\mcRBM.py" />
+    <Compile Include="mcRBM\test_hmc.py" />
+    <Compile Include="mcRBM\test_mcrbm.py" />
+    <Compile Include="mcRBM\__init__.py" />
+    <Compile Include="mlp.py" />
+    <Compile Include="rbm.py" />
+    <Compile Include="rnnrbm.py" />
+    <Compile Include="rnnslu.py" />
+    <Compile Include="SdA.py" />
+    <Compile Include="SdA_loops.py" />
+    <Compile Include="test.py" />
+    <Compile Include="tutorial.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="utils.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="hmc" />
+    <Folder Include="mcRBM" />
+  </ItemGroup>
+  <Import Project="$(PtvsTargetsFile)" Condition="Exists($(PtvsTargetsFile))" />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" Condition="!Exists($(PtvsTargetsFile))" />
+</Project>
