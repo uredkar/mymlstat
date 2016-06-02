@@ -32,9 +32,16 @@
     <Compile Include="hmc\__init__.py" />
     <Compile Include="imdb.py" />
     <Compile Include="imdb_preprocess.py" />
+    <Compile Include="intropython\numpy.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="kerastutorial.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="keras\feedforward_keras_mnist.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="keras\kerastutorial.py" />
     <Compile Include="logistic_cg.py" />
     <Compile Include="logistic_sgd.py" />
     <Compile Include="lstm.py" />
@@ -50,6 +57,12 @@
     <Compile Include="SdA.py" />
     <Compile Include="SdA_loops.py" />
     <Compile Include="test.py" />
+    <Compile Include="theano\IsUsingGPU.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="theano\theanobasic.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="tutorial.py">
       <SubType>Code</SubType>
     </Compile>
@@ -57,7 +70,10 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="hmc" />
+    <Folder Include="keras\" />
     <Folder Include="mcRBM" />
+    <Folder Include="intropython\" />
+    <Folder Include="theano\" />
   </ItemGroup>
   <Import Project="$(PtvsTargetsFile)" Condition="Exists($(PtvsTargetsFile))" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" Condition="!Exists($(PtvsTargetsFile))" />
